@@ -6,7 +6,7 @@ from torch import nn
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
-from .common import Activation
+from .common import Activation, LinearAct
 
 # helpers
 
@@ -47,8 +47,11 @@ class Attention(nn.Module):
             nn.Linear(inner_dim, dim),
             nn.Dropout(dropout)
         ) if project_out else nn.Identity()
-        self.val_act = nn.Identity() if val_act is None else Activation(val_act)
-        self.post_attn_act = nn.Identity() if post_attn_act is None else Activation(post_attn_act)
+        # self.val_act = nn.Identity() if val_act is None else Activation(val_act)
+        # self.post_attn_act = nn.Identity() if post_attn_act is None else Activation(post_attn_act)
+        self.val_act = LinearAct(inner_dim, inner_dim, activation_type=val_act, power=1.0, pre_act=True) if val_act is not None else nn.Identity()
+        self.post_attn_act = LinearAct(dim, dim, activation_type=post_attn_act, power=1.0, pre_act=True) if post_attn_act is not None else nn.Identity()
+
 
     def forward(self, x):
         qkv = self.to_qkv(x).chunk(3, dim = -1)

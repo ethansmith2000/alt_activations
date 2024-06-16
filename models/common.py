@@ -16,6 +16,18 @@ class NormalizedExp(nn.Module):
         return torch.exp(x - self.avg_max)
 
 
+class LinearAct(nn.Module):
+    
+    def __init__(self, in_features, out_features, bias=True, activation_type='relu', power=1.0, pre_act=False):
+        super().__init__()
+        self.pre_act = Activation(activation_type, power) if pre_act else nn.Identity()
+        self.linear = nn.Linear(in_features, out_features, bias=bias)
+        self.post_act = Activation(activation_type, power) if not pre_act else nn.Identity()
+
+    def forward(self, x):
+        return self.post_act(self.linear(self.pre_act(x)))
+
+
 class Activation(nn.Module):
 
     def __init__(self, activation_type: str = 'relu', power=1.0):
