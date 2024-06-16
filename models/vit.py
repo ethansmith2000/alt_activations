@@ -37,7 +37,7 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 class Attention(nn.Module):
-    def __init__(self, dim, heads = 8, dim_head = 64, dropout = 0., val_act=None, post_attn_act=None):
+    def __init__(self, dim, heads = 8, dim_head = 64, dropout = 0., val_act=None, post_attn_act=None, power=1.0):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
@@ -49,8 +49,8 @@ class Attention(nn.Module):
         ) if project_out else nn.Identity()
         # self.val_act = nn.Identity() if val_act is None else Activation(val_act)
         # self.post_attn_act = nn.Identity() if post_attn_act is None else Activation(post_attn_act)
-        self.val_act = LinearAct(inner_dim, inner_dim, activation_type=val_act, power=1.0, pre_act=True) if val_act is not None else nn.Identity()
-        self.post_attn_act = LinearAct(dim, dim, activation_type=post_attn_act, power=1.0, pre_act=True) if post_attn_act is not None else nn.Identity()
+        self.val_act = LinearAct(inner_dim, inner_dim, activation_type=val_act, power=power, pre_act=True) if val_act is not None else nn.Identity()
+        self.post_attn_act = LinearAct(dim, dim, activation_type=post_attn_act, power=power, pre_act=True) if post_attn_act is not None else nn.Identity()
 
 
     def forward(self, x):
@@ -63,14 +63,14 @@ class Attention(nn.Module):
         return self.to_out(out)
 
 class Transformer(nn.Module):
-    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0., acts="gelu", act_powers=1, val_act=None, post_attn_act=None):
+    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0., acts="gelu", act_powers=1, val_act=None, post_attn_act=None, attn_power=1.0):
         super().__init__()
         self.layers = nn.ModuleList([])
         acts = [acts] * depth if isinstance(acts, str) else acts
         act_powers = [act_powers] * depth if (isinstance(act_powers, int) or isinstance(act_powers, float)) else act_powers
         for i in range(depth):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout, val_act=val_act, post_attn_act=post_attn_act)),
+                PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout, val_act=val_act, post_attn_act=post_attn_act, power=attn_power)),
                 PreNorm(dim, FeedForward(dim, mlp_dim, dropout, acts[i], act_powers[i]))
             ]))
     def forward(self, x):
@@ -96,7 +96,8 @@ class ViT(nn.Module):
                     acts="gelu",
                     act_powers=1,
                     val_act=None,
-                    post_attn_act=None
+                    post_attn_act=None,
+                    attn_power=1.0,
                     ):
         super().__init__()
         image_height, image_width = pair(image_size)
@@ -117,7 +118,7 @@ class ViT(nn.Module):
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
         self.dropout = nn.Dropout(emb_dropout)
 
-        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout, acts=acts, act_powers=act_powers, val_act=val_act, post_attn_act=post_attn_act)
+        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout, acts=acts, act_powers=act_powers, val_act=val_act, post_attn_act=post_attn_act, attn_power=attn_power)
 
         self.pool = pool
         self.to_latent = nn.Identity()

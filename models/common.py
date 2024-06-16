@@ -41,6 +41,8 @@ class Activation(nn.Module):
             activation = lambda x: torch.nn.functional.silu(x)
         elif activation_type == 'tanh':
             activation = lambda x: torch.tanh(x)
+        elif activation_type == 'leaky':
+            activation = lambda x: torch.nn.functional.leaky_relu(x, negative_slope=0.2)
         elif activation_type == 'sin':
             activation = lambda x: torch.sin(x)
         elif activation_type == 'sin_residual':

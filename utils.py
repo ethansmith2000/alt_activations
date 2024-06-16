@@ -214,7 +214,8 @@ def load_model(args):
         acts=args.acts,
         act_powers=args.act_powers,
         val_act=args.val_act,
-        post_attn_act=args.post_attn_act
+        post_attn_act=args.post_attn_act,
+        attn_power=args.attn_power
     )
     elif args.net=="vit_timm":
         import timm
