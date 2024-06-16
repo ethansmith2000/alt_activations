@@ -1,0 +1,6 @@
+model-output
+wandb
+*__pycache__*
+log
+data
+checkpoint
