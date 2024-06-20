@@ -60,7 +60,7 @@ import torch.nn as nn
 from typing import Optional, Tuple, Union
 from transformers.models.gpt2.modeling_gpt2 import GPT2Attention
 import time
-from models.common import Activation
+from models.common import Activation, LinearAct
 
 
 class Conv1D(nn.Module):
@@ -107,10 +107,13 @@ class GPT2MLP(nn.Module):
 
 
 class NewGPT2Attention(GPT2Attention):
-    def __init__(self, config, is_cross_attention=False, layer_idx=None, value_act=None, post_attn_act=None):
-        super().__init__(self, config, is_cross_attention=is_cross_attention, layer_idx=layer_idx)
-        self.value_act = nn.Identity() if value_act is None else Activation(value_act)
-        self.post_attn_act = nn.Identity() if post_attn_act is None else Activation(post_attn_act)
+    def __init__(self, config, is_cross_attention=False, layer_idx=None, value_act=None, post_attn_act=None, power=1.0):
+        super().__init__(config, is_cross_attention=is_cross_attention, layer_idx=layer_idx)
+        # self.value_act = nn.Identity() if value_act is None else Activation(value_act)
+        # self.post_attn_act = nn.Identity() if post_attn_act is None else Activation(post_attn_act)
+        dim = self.c_attn.nf // 3
+        self.value_act = nn.Identity() if value_act is None else LinearAct(dim, dim, activation_type=value_act, power=power, pre_act=True)
+        self.post_attn_act = nn.Identity() if post_attn_act is None else LinearAct(dim, dim, activation_type=post_attn_act, power=power, pre_act=True)
 
     def forward(
         self,
@@ -170,13 +173,13 @@ class NewGPT2Attention(GPT2Attention):
         return outputs  # a, present, (attentions)
 
 
-def patch_attn(model, value_act=None, post_attn_act=None):
+def patch_attn(model, value_act=None, post_attn_act=None, power=1.0):
     conf = model.config
     idx = 0
     for n,m in model.named_modules():
         if hasattr(m, "attn"):
             del m.attn
-            m.add_module("attn", NewGPT2Attention(conf, is_cross_attention=False, layer_idx=None, value_act=value_act, post_attn_act=post_attn_act))
+            m.add_module("attn", NewGPT2Attention(conf, is_cross_attention=False, layer_idx=None, value_act=value_act, post_attn_act=post_attn_act, power=power))
             idx += 1
             print('current idx', idx)
 
@@ -205,9 +208,10 @@ def main():
 
     args = {
         "activations": ["gelu", "gelu", "gelu", "gelu", "gelu", "gelu", "gelu", "gelu", "gelu", "gelu", "gelu", "gelu"],
-        "activation_powers": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-        "value_act": None,
+        "activation_powers": [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+        "value_act": "leaky",
         "post_attn_act": None,
+        "attn_power": 3.0,
         "num_validation_batches": 25,
         "validate_every": 1000,
         "dataset_name": "wikitext",
@@ -259,6 +263,13 @@ def main():
         non_gelu = non_gelu[0]
         indices = tuple([i+1 for i, a in enumerate(args['activations']) if a == non_gelu])
         base_str = base_str + "_{}-{}".format(non_gelu, indices)
+
+    unique_powers = list(set(args['activation_powers']))
+    non_one = [p for p in unique_powers if p != 1]
+    if len(non_one) > 0:
+        non_one = non_one[0]
+        indices = tuple([i+1 for i, p in enumerate(args['activation_powers']) if p == non_one])
+        base_str = base_str + "_{}-{}".format(non_one, indices)
 
     args = SimpleNamespace(**args)
 
@@ -422,11 +433,8 @@ def main():
 
     model.gradient_checkpointing_enable()
 
-    # if args.use_new_attn:
-    #     patch_attn(model)
-    
-    if len(args.activations) > 0:
-        patch_mlp(model, args.activations, args.activation_powers)
+    patch_attn(model, value_act=args.value_act, post_attn_act=args.post_attn_act, power=args.attn_power)
+    patch_mlp(model, args.activations, args.activation_powers)
 
     print(model)
     model = model.to(accelerator.device)

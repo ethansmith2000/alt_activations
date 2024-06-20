@@ -54,9 +54,9 @@ class Attention(nn.Module):
 
 
     def forward(self, x):
-        qkv = self.to_qkv(x).chunk(3, dim = -1)
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = self.heads), qkv)
+        q, k, v = self.to_qkv(x).chunk(3, dim = -1)
         v = self.val_act(v)
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = self.heads), (q,k,v))
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
         out = self.post_attn_act(out)

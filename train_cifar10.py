@@ -39,7 +39,7 @@ default_args = dict(
     net = "vit",
     bs = 512,
     size = 32,
-    n_epochs = 200,
+    n_epochs = 100,
     patch = 4,
     dim = 64,
     convkernel = 8,
@@ -148,6 +148,7 @@ def train_model(args):
     # writeout wandb
     if args.wandb:
         wandb.save("wandb_{}.h5".format(args.net))
+        wandb.finish()
 
 if __name__ == '__main__':
     args = default_args
